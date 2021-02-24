@@ -6,7 +6,7 @@ int main(int argc, char** argv){
 	bridge::server serv;
 	bridge::context ctx;
 
-	auto ec = bridge::create_server(&serv, "127.0.0.1", 50000); 
+	auto ec = bridge::create_server(&serv, "::1", 50000, true); 
 	if(ec != bridge::err_code::OK)
 		printf("Cannot create server: '%s'\n", bridge::err_code_desc[ec].c_str());
 

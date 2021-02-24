@@ -28,11 +28,9 @@ struct context{
 struct server{
 	
 	int socket_fd;
-	struct sockaddr_in address;
+	bool is_ipv6;
 	bool is_online;
-	
-	server(): socket_fd(0), is_online(false){
-		memset(&address, 0, sizeof(struct sockaddr_in));
+	server(): socket_fd(0), is_online(false), is_ipv6(false){
 	}
 };
 
@@ -68,17 +66,17 @@ struct pack{
 	std::vector<uint32_t> data;
 };
 
-inline void print_errno(int code){
+void print_errno(int code){
 	printf("Socket error code: '%i', desc: '%s'\n", code, strerror(code));
 }
 
-inline int async_listen(server* serv){
+int async_listen_ipv4(server* serv){
 	for(;;){
-		printf("Listening!\n");
+		printf("Listening!\n");	
 		
 		struct sockaddr address;
 		int address_len;
-		int cli_socket = accept(serv->socket_fd, &address, (socklen_t*)&address_len);
+		int cli_socket = accept(serv->socket_fd, &address, (socklen_t*)&address_len);	
 
 		if(cli_socket == -1){
 			print_errno(errno);
@@ -86,34 +84,67 @@ inline int async_listen(server* serv){
 		} 
 
 		struct sockaddr_in *cli_addr = reinterpret_cast<struct sockaddr_in*>(&address);
-
-		char *ip = inet_ntoa(cli_addr->sin_addr);
-
+		char* ip = inet_ntoa(cli_addr->sin_addr);
 		printf("Got connection form: '%s'\n", ip);
+		
 	}
+
 	return 0;
 }
 
-inline err_code server_start_to_listen(context* ctx, server* serv){
+
+int async_listen_ipv6(server *serv){
+	for(;;){
+		printf("Listening!\n");
+		
+		int address_len;
+		struct sockaddr_in6 address;
+		int cli_socket = accept(serv->socket_fd, (struct sockaddr*)&address, (socklen_t*)&address_len);
+
+		if(cli_socket == -1){
+			print_errno(errno);
+			return err_code::SERVER_ACCEPT_FAILED;
+		} 
+
+		char ip[INET6_ADDRSTRLEN];
+		inet_ntop(AF_INET6, &(address.sin6_addr), ip, sizeof(ip));
+		printf("Got connection form: '%s'\n", ip);
+		
+	}
+
+	return 0;
+}
+
+err_code server_start_to_listen(context* ctx, server* serv){
 	if(serv == nullptr)
 		return err_code::SERVER_NULLPTR;
 
 	if(ctx == nullptr)
 		return err_code::CONTEXT_NULLPTR;
 
-	ctx->listener = std::async(async_listen, serv);
+	if(serv->is_ipv6)
+		ctx->listener = std::async(async_listen_ipv6, serv);
+	else
+		ctx->listener = std::async(async_listen_ipv4, serv);
 
 	return err_code::OK;
 }
 
-inline err_code create_server(server* serv, std::string ipv4, short port){
+err_code create_server(server* serv, std::string ip, int port, bool ipv6 = false){
 	if(serv == nullptr)
 		return err_code::SERVER_NULLPTR;
 
 	if(serv->is_online)
 		return err_code::SERVER_ALREADY_CREATED;
 
-	if((serv->socket_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
+
+	int domain = AF_INET;
+	if(ipv6){
+		serv->is_ipv6 = ipv6;
+		domain = AF_INET6;
+	}
+
+	if((serv->socket_fd = socket(domain, SOCK_STREAM, 0)) == -1){
 		print_errno(errno);
 		return err_code::SOCKET_FAILED;
 	}
@@ -124,25 +155,46 @@ inline err_code create_server(server* serv, std::string ipv4, short port){
 		return err_code::SOCKET_SET_SOCKOPT_FAILED;
 	}
 
-	serv->address.sin_family = AF_INET;
-	serv->address.sin_addr.s_addr = inet_addr(ipv4.c_str());
-	serv->address.sin_port = htons(port);
+	if(ipv6){
+		struct sockaddr_in6 address;
+		memset(&address, 0, sizeof(struct sockaddr_in6));
+	
+		address.sin6_family = AF_INET6;
+		inet_pton(AF_INET6, ip.c_str(), &address.sin6_addr);
+		address.sin6_port = htons(port);
 
-	if(bind(serv->socket_fd, (struct sockaddr *)&serv->address, sizeof(serv->address)) < 0){
-		print_errno(errno);
-		return err_code::SOCKET_BIND_FAILED;
+		if(bind(serv->socket_fd, (struct sockaddr *)&address, sizeof(address)) < 0){
+			print_errno(errno);
+			return err_code::SOCKET_BIND_FAILED;
+		}
 	}
+	else{
+		struct sockaddr_in address;
+		memset(&address, 0, sizeof(struct sockaddr_in));
+	
+		address.sin_family = AF_INET;
+		address.sin_addr.s_addr = inet_addr(ip.c_str());
+		address.sin_port = htons(port);
+
+		if(bind(serv->socket_fd, (struct sockaddr *)&address, sizeof(address)) < 0){
+			print_errno(errno);
+			return err_code::SOCKET_BIND_FAILED;
+		}
+	}
+
 
 	if(listen(serv->socket_fd, BACKLOG) == -1){
 		print_errno(errno);
 		return err_code::SOCKET_LISTEN_FAILED;
 	}
 
+	printf("Server created at: '%s' ip and '%i' port.\n", ip.c_str(), port);
+
 	return err_code::OK;
 }
 
 
-inline err_code create_client(std::string ipv4_dest, short port_dest){
+ err_code create_client(std::string ipv4_dest, short port_dest){
 	
 
 	return err_code::OK;
