@@ -13,9 +13,17 @@
 #include <netinet/in.h> 
 #include <arpa/inet.h>
 #include <errno.h>
+
+#include <future>
+
+
 namespace bridge{
 
 const int BACKLOG = 8;
+
+struct context{
+	std::future<int> listener;
+};
 
 struct server{
 	
@@ -38,10 +46,15 @@ enum err_code{
 	SOCKET_SET_SOCKOPT_FAILED,
 	SOCKET_BIND_FAILED,
 	SOCKET_LISTEN_FAILED,
+
+	CONTEXT_NULLPTR,
 };
 
-const std::vector<std::string> err_code_desc = {"OK", "SERVER_NULLPTR", "SERVER_ALREADY_CREATED", "SOCKET_FAILED",
-				 "SOCKET_SET_SOCKOPT_FAILED", "SOCKET_BIND_FAILED", "SOCKET_LISTEN_FAILED"};
+const std::vector<std::string> err_code_desc = {
+				"OK",
+				"SERVER_NULLPTR", "SERVER_ALREADY_CREATED", 
+				"SOCKET_FAILED", "SOCKET_SET_SOCKOPT_FAILED", "SOCKET_BIND_FAILED", "SOCKET_LISTEN_FAILED",
+				"CONTEXT_NULLPTR"};
 
 
 struct header{
@@ -56,6 +69,25 @@ struct pack{
 
 inline void print_errno(int code){
 	printf("Socket error code: '%i', desc: '%s'\n", code, strerror(code));
+}
+
+inline int async_listen(){
+	for(;;){
+		printf("Listening!\n");
+	}
+	return 0;
+}
+
+inline err_code server_start_to_listen(context* ctx, server* serv){
+	if(serv == nullptr)
+		return err_code::SERVER_NULLPTR;
+
+	if(ctx == nullptr)
+		return err_code::CONTEXT_NULLPTR;
+
+	ctx->listener = std::async(async_listen);
+
+	return err_code::OK;
 }
 
 inline err_code create_server(server* serv, std::string ipv4, short port){
