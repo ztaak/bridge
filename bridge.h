@@ -15,6 +15,8 @@
 #include <errno.h>
 namespace bridge{
 
+const int BACKLOG = 8;
+
 struct server{
 	
 	int socket_fd;
@@ -35,10 +37,11 @@ enum err_code{
 	SOCKET_FAILED,
 	SOCKET_SET_SOCKOPT_FAILED,
 	SOCKET_BIND_FAILED,
+	SOCKET_LISTEN_FAILED,
 };
 
-const std::vector<std::string> err_code_desc = {"OK", "SERVER_NULLPTR", "SERVER_ALREADY_CREATED",
-								 "SOCKET_FAILED", "SOCKET_SET_SOCKOPT_FAILED", "SOCKET_BIND_FAILED"};
+const std::vector<std::string> err_code_desc = {"OK", "SERVER_NULLPTR", "SERVER_ALREADY_CREATED", "SOCKET_FAILED",
+				 "SOCKET_SET_SOCKOPT_FAILED", "SOCKET_BIND_FAILED", "SOCKET_LISTEN_FAILED"};
 
 
 struct header{
@@ -80,6 +83,11 @@ inline err_code create_server(server* serv, std::string ipv4, short port){
 	if(bind(serv->socket_fd, (struct sockaddr *)&serv->address, sizeof(serv->address)) < 0){
 		print_errno(errno);
 		return err_code::SOCKET_BIND_FAILED;
+	}
+
+	if(listen(serv->socket_fd, BACKLOG) == -1){
+		print_errno(errno);
+		return err_code::SOCKET_LISTEN_FAILED;
 	}
 
 	return err_code::OK;
