@@ -41,6 +41,7 @@ enum err_code{
 	
 	SERVER_NULLPTR,
 	SERVER_ALREADY_CREATED,
+	SERVER_ACCEPT_FAILED,
 
 	SOCKET_FAILED,
 	SOCKET_SET_SOCKOPT_FAILED,
@@ -52,7 +53,7 @@ enum err_code{
 
 const std::vector<std::string> err_code_desc = {
 				"OK",
-				"SERVER_NULLPTR", "SERVER_ALREADY_CREATED", 
+				"SERVER_NULLPTR", "SERVER_ALREADY_CREATED", "SERVER ACCEPT FAILED", 
 				"SOCKET_FAILED", "SOCKET_SET_SOCKOPT_FAILED", "SOCKET_BIND_FAILED", "SOCKET_LISTEN_FAILED",
 				"CONTEXT_NULLPTR"};
 
@@ -71,9 +72,24 @@ inline void print_errno(int code){
 	printf("Socket error code: '%i', desc: '%s'\n", code, strerror(code));
 }
 
-inline int async_listen(){
+inline int async_listen(server* serv){
 	for(;;){
 		printf("Listening!\n");
+		
+		struct sockaddr address;
+		int address_len;
+		int cli_socket = accept(serv->socket_fd, &address, (socklen_t*)&address_len);
+
+		if(cli_socket == -1){
+			print_errno(errno);
+			return err_code::SERVER_ACCEPT_FAILED;
+		} 
+
+		struct sockaddr_in *cli_addr = reinterpret_cast<struct sockaddr_in*>(&address);
+
+		char *ip = inet_ntoa(cli_addr->sin_addr);
+
+		printf("Got connection form: '%s'\n", ip);
 	}
 	return 0;
 }
@@ -85,7 +101,7 @@ inline err_code server_start_to_listen(context* ctx, server* serv){
 	if(ctx == nullptr)
 		return err_code::CONTEXT_NULLPTR;
 
-	ctx->listener = std::async(async_listen);
+	ctx->listener = std::async(async_listen, serv);
 
 	return err_code::OK;
 }
