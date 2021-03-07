@@ -1,0 +1,5 @@
+bin
+obj
+mold
+premake5
+premake5.lua
